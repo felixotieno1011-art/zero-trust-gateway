@@ -1,11 +1,9 @@
-"""Zero-Trust Gateway: reverse proxy that enforces JWT auth before
-forwarding to backend services.
+"""Zero-Trust Gateway: reverse proxy with JWT auth and WAF.
 
-Routing:
-  /auth/*  → auth_service   (public: register, login, refresh)
-  /me      → auth_service   (protected)
-  /api/a/* → mock_service_a (protected)
-  /api/b/* → mock_service_b (protected)
+Middleware order (outermost first, as executed per request):
+  1. WAFMiddleware       — blocks SQLi/XSS payloads
+  2. JWTAuthMiddleware   — verifies JWT on protected routes
+  3. proxy to backend
 """
 import os
 from pathlib import Path
@@ -21,6 +19,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from gateway.middleware.auth import JWTAuthMiddleware
+from gateway.middleware.waf import WAFMiddleware
 
 
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://127.0.0.1:8001")
@@ -29,12 +28,10 @@ MOCK_B_URL = os.getenv("MOCK_B_URL", "http://127.0.0.1:9002")
 
 
 async def _proxy(request: Request, target_base: str, path: str) -> JSONResponse:
-    """Forward the incoming request to target_base+path."""
     url = f"{target_base.rstrip('/')}/{path.lstrip('/')}"
     if request.url.query:
         url += f"?{request.url.query}"
 
-    # Build forward headers from the (already-modified) request headers
     forward_headers = {
         k: v for k, v in request.headers.items()
         if k.lower() not in ("host", "content-length")
@@ -45,18 +42,13 @@ async def _proxy(request: Request, target_base: str, path: str) -> JSONResponse:
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             resp = await client.request(
-                request.method,
-                url,
+                request.method, url,
                 headers=forward_headers,
                 content=body,
             )
         except httpx.RequestError as exc:
-            return JSONResponse(
-                {"error": f"upstream unreachable: {exc}"},
-                status_code=502,
-            )
+            return JSONResponse({"error": f"upstream unreachable: {exc}"}, status_code=502)
 
-    # Pass through the upstream status and body
     try:
         payload = resp.json()
     except Exception:
@@ -69,8 +61,6 @@ async def health(_: Request) -> JSONResponse:
     return JSONResponse({"status": "ok", "service": "gateway"})
 
 
-# ---- Auth service routes (public) ----------------------------------------
-
 async def auth_route(request: Request) -> JSONResponse:
     path = request.path_params.get("path", "")
     return await _proxy(request, AUTH_SERVICE_URL, path)
@@ -79,8 +69,6 @@ async def auth_route(request: Request) -> JSONResponse:
 async def me_route(request: Request) -> JSONResponse:
     return await _proxy(request, AUTH_SERVICE_URL, "me")
 
-
-# ---- Protected routes ----------------------------------------------------
 
 async def service_a_route(request: Request) -> JSONResponse:
     path = request.path_params.get("path", "")
@@ -94,13 +82,15 @@ async def service_b_route(request: Request) -> JSONResponse:
 
 routes = [
     Route("/health", health, methods=["GET"]),
-    # Auth service (public paths are in PUBLIC_PATHS in middleware)
     Route("/auth/{path:path}", auth_route, methods=["GET", "POST", "PUT", "PATCH"]),
     Route("/me", me_route, methods=["GET"]),
-    # Protected backends
     Route("/api/a/{path:path}", service_a_route, methods=["GET", "POST", "PUT", "PATCH"]),
     Route("/api/b/{path:path}", service_b_route, methods=["GET", "POST", "PUT", "PATCH"]),
 ]
 
 app = Starlette(routes=routes)
+
+# Order: JWTAuth added first (innermost), WAF added second (outermost).
+# WAF runs first on every request — blocks payloads before auth even evaluates.
 app.add_middleware(JWTAuthMiddleware)
+app.add_middleware(WAFMiddleware)

@@ -65,3 +65,13 @@ uvicorn auth_service.main:app --host 127.0.0.1 --port 8001 --reload
 - [x] Header spoofing prevention (strips incoming X-User-* headers)
 - [x] Authorization stripping (backends never see raw JWTs)
 - [x] 14 gateway tests, 35 total, all passing
+
+### Day 4 — WAF (Web Application Firewall) ✅
+- [x] Pattern-based SQLi detection (10 rules)
+- [x] Pattern-based XSS detection (8 rules)
+- [x] Score-based blocking (weight 2 = auto-block, weight 1 = corroborated)
+- [x] Inspects query string + JSON body + raw body
+- [x] Double URL-decode to catch encoding evasion
+- [x] WAF runs before auth (blocks attacks without a valid token)
+- [x] X-WAF-Blocked response header names the triggering rules
+- [x] 19 new tests, 54 total, all passing
