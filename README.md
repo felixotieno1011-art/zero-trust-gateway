@@ -48,3 +48,11 @@ uvicorn auth_service.main:app --host 127.0.0.1 --port 8001 --reload
 - [ ] POST /refresh (token rotation)
 - [ ] POST /logout (token revocation)
 - [ ] Pytest suite with HTTP tests
+
+### Day 2 — Token Lifecycle + Tests ✅
+- [x] POST /refresh with token rotation
+- [x] POST /logout with token revocation
+- [x] jti added to prevent same-second collision
+- [x] 21 pytest tests, all passing
+- [x] Test DB with session-scoped fixtures
+- [x] Uvicorn subprocess management in tests
