@@ -56,3 +56,12 @@ uvicorn auth_service.main:app --host 127.0.0.1 --port 8001 --reload
 - [x] 21 pytest tests, all passing
 - [x] Test DB with session-scoped fixtures
 - [x] Uvicorn subprocess management in tests
+
+### Day 3 — Reverse Proxy Gateway ✅
+- [x] Starlette reverse proxy on port 8080
+- [x] JWT verification middleware
+- [x] Two mock backends (mock-service-a, mock-service-b)
+- [x] Identity injection via X-User-Id / X-User-Email headers
+- [x] Header spoofing prevention (strips incoming X-User-* headers)
+- [x] Authorization stripping (backends never see raw JWTs)
+- [x] 14 gateway tests, 35 total, all passing
