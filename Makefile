@@ -7,7 +7,7 @@ test:
 pytest -v
 
 lint:
-python -m compileall auth-service gateway
+python -m compileall auth_service gateway
 
 clean:
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
