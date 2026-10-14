@@ -19,13 +19,13 @@ Built and tested on Termux (Android, aarch64, Python 3.14). FastAPI's dependency
 ## Roadmap
 
 - [x] Repo + project structure
-- [ ] Auth service (register, login, JWT, /me)
-- [ ] Gateway reverse proxy
-- [ ] WAF module (SQLi/XSS detection)
+- [x] Auth service (register, login, JWT, /me)
+- [x] Gateway reverse proxy
+- [x] WAF module (SQLi/XSS detection)
 - [ ] Redis rate limiting
 - [ ] Docker Compose stack
 - [ ] GitHub Actions CI
-- [ ] Tests
+- [x] Tests (58 passing)
 - [ ] Deployment
 
 ## Local Development
