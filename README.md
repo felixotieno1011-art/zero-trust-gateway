@@ -33,3 +33,18 @@ Built and tested on Termux (Android, aarch64, Python 3.14). FastAPI's dependency
 ```bash
 uv pip install starlette uvicorn passlib redis pg8000 python-multipart email-validator pytest httpx
 uvicorn auth_service.main:app --host 127.0.0.1 --port 8001 --reload
+
+## Progress Log
+
+### Day 1 — Auth Service ✅
+- [x] Starlette app with lifespan schema init
+- [x] Custom HS256 JWT (stdlib only)
+- [x] bcrypt password hashing (direct, no passlib)
+- [x] PostgreSQL users + refresh_tokens tables
+- [x] Endpoints: /health, /register, /login, /me
+- [x] 8 attack tests verified (401/400/409 as appropriate)
+
+### Day 2 — Coming Next
+- [ ] POST /refresh (token rotation)
+- [ ] POST /logout (token revocation)
+- [ ] Pytest suite with HTTP tests
