@@ -65,3 +65,43 @@ def init_schema() -> None:
             stmt = statement.strip()
             if stmt:
                 conn.run(stmt)
+
+
+# ---------------------------------------------------------------------------
+# Refresh token operations
+# ---------------------------------------------------------------------------
+
+def store_refresh_token(conn, user_id: int, token: str, expires_at) -> None:
+    conn.run(
+        "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (:uid, :tok, :exp)",
+        uid=user_id,
+        tok=token,
+        exp=expires_at,
+    )
+
+
+def find_refresh_token(conn, token: str):
+    """Return (id, user_id, expires_at) or None."""
+    rows = conn.run(
+        "SELECT id, user_id, expires_at FROM refresh_tokens WHERE token = :tok",
+        tok=token,
+    )
+    return rows[0] if rows else None
+
+
+def revoke_refresh_token(conn, token: str) -> int:
+    """Delete a refresh token. Returns rows affected."""
+    rows = conn.run(
+        "DELETE FROM refresh_tokens WHERE token = :tok RETURNING id",
+        tok=token,
+    )
+    return len(rows)
+
+
+def revoke_all_user_tokens(conn, user_id: int) -> int:
+    """Revoke every refresh token for a user (used for 'logout everywhere')."""
+    rows = conn.run(
+        "DELETE FROM refresh_tokens WHERE user_id = :uid RETURNING id",
+        uid=user_id,
+    )
+    return len(rows)
