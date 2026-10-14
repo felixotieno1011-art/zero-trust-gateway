@@ -75,3 +75,12 @@ uvicorn auth_service.main:app --host 127.0.0.1 --port 8001 --reload
 - [x] WAF runs before auth (blocks attacks without a valid token)
 - [x] X-WAF-Blocked response header names the triggering rules
 - [x] 19 new tests, 54 total, all passing
+
+### Day 4 — WAF + Lifecycle Fixes ✅
+- [x] WAF middleware with 10 SQLi + 8 XSS rules
+- [x] Score-based detection, double URL-decode
+- [x] WAF runs before auth (blocks without a valid token)
+- [x] 19 WAF tests + 4 new gateway lifecycle tests
+- [x] Fixed /auth/logout missing from gateway PUBLIC_PATHS
+- [x] requirements.txt + sync-deps.sh for reproducible env recovery
+- [x] 58 total tests passing
