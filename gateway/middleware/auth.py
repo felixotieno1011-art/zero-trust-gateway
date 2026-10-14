@@ -25,6 +25,7 @@ PUBLIC_PATHS = {
     "/auth/register",
     "/auth/login",
     "/auth/refresh",
+    "/auth/logout",   # revokes a refresh token — no access token required
 }
 
 PASSTHROUGH_AUTH_PATHS = {

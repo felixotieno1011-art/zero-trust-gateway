@@ -173,3 +173,48 @@ def test_me_through_gateway(gateway_client):
 def test_me_requires_auth(gateway_client):
     r = gateway_client.get("/me")
     assert r.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Token lifecycle through the gateway (regression coverage)
+# ---------------------------------------------------------------------------
+
+def test_refresh_through_gateway(gateway_client):
+    """Refresh must work without an access token (refresh is the credential)."""
+    create_user(gateway_client)
+    refresh = login(gateway_client).json()["refresh_token"]
+
+    r = gateway_client.post("/auth/refresh", json={"refresh_token": refresh})
+    assert r.status_code == 200
+    assert "access_token" in r.json()
+
+
+def test_logout_through_gateway(gateway_client):
+    """Logout must work without an access token (refresh is the credential)."""
+    create_user(gateway_client)
+    refresh = login(gateway_client).json()["refresh_token"]
+
+    r = gateway_client.post("/auth/logout", json={"refresh_token": refresh})
+    assert r.status_code == 200
+    assert r.json()["status"] == "logged out"
+
+
+def test_logout_revokes_token_through_gateway(gateway_client):
+    """After logout, the refresh token must not work anymore."""
+    create_user(gateway_client)
+    refresh = login(gateway_client).json()["refresh_token"]
+
+    r1 = gateway_client.post("/auth/logout", json={"refresh_token": refresh})
+    assert r1.status_code == 200
+
+    r2 = gateway_client.post("/auth/refresh", json={"refresh_token": refresh})
+    assert r2.status_code == 401
+
+
+def test_register_through_gateway_is_public(gateway_client):
+    """Register must be reachable without a token."""
+    r = gateway_client.post(
+        "/auth/register",
+        json={"email": "public-register@example.com", "password": "testpassword123"},
+    )
+    assert r.status_code == 201
