@@ -84,3 +84,12 @@ uvicorn auth_service.main:app --host 127.0.0.1 --port 8001 --reload
 - [x] Fixed /auth/logout missing from gateway PUBLIC_PATHS
 - [x] requirements.txt + sync-deps.sh for reproducible env recovery
 - [x] 58 total tests passing
+
+### Day 5 — Redis Rate Limiting ✅
+- [x] Sliding-window rate limiter (Redis sorted sets)
+- [x] Per-IP (100/min), per-user (300/min), per-endpoint limits
+- [x] Stricter auth endpoint limits (login/register 5/min)
+- [x] X-RateLimit-* headers on every non-public response
+- [x] 429 responses include Retry-After
+- [x] Fails open on Redis errors
+- [x] 11 new tests, 69 total passing
