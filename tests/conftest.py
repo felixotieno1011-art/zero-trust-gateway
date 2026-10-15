@@ -170,3 +170,29 @@ def clean_tables(setup_test_db):
 def client(auth_client):
     """Alias for auth_client, used by test_auth.py."""
     yield auth_client
+
+
+# ---------------------------------------------------------------------------
+# Global rate-limit cleanup: flush Redis before every test
+# ---------------------------------------------------------------------------
+
+import redis as _redis
+
+
+@pytest.fixture(autouse=True)
+def flush_redis_counters():
+    """Wipe rate-limit keys before and after every test.
+
+    Without this, requests counted in one test leak into the next,
+    causing spurious 429 responses.
+    """
+    def _flush():
+        try:
+            r = _redis.Redis.from_url("redis://localhost:6379/0", decode_responses=True)
+            r.flushdb()
+        except _redis.RedisError:
+            pass
+
+    _flush()
+    yield
+    _flush()

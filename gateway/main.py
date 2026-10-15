@@ -19,6 +19,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from gateway.middleware.auth import JWTAuthMiddleware
+from gateway.middleware.rate_limit import RateLimitMiddleware
 from gateway.middleware.waf import WAFMiddleware
 
 
@@ -90,7 +91,11 @@ routes = [
 
 app = Starlette(routes=routes)
 
-# Order: JWTAuth added first (innermost), WAF added second (outermost).
-# WAF runs first on every request — blocks payloads before auth even evaluates.
+# Middleware execution order (outermost first, i.e. last-added runs first):
+#   1. RateLimitMiddleware — reject floods early
+#   2. WAFMiddleware       — block malicious payloads
+#   3. JWTAuthMiddleware   — verify identity
+# Add in reverse: innermost first.
 app.add_middleware(JWTAuthMiddleware)
 app.add_middleware(WAFMiddleware)
+app.add_middleware(RateLimitMiddleware)
