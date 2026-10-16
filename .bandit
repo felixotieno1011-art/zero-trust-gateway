@@ -1,0 +1,6 @@
+[bandit]
+# Exclude test directories and virtual envs
+exclude = tests,.venv,venv,node_modules
+
+# Severity/confidence thresholds (medium and above only)
+# -ll = report only Low+ severity; this is the default for the workflow
