@@ -12,3 +12,4 @@ coverage.xml
 htmlcov/
 *.log
 .pytest_service_*.log
+dump.rdb
