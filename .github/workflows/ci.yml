@@ -132,7 +132,9 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"email":"ci@example.com","password":"testpassword123"}' | tee login.out
 
-          TOKEN=$(python -c "import json; print(json.load(open('login.out'))['access_token'])" 2>/dev/null || true)
+          # login.out contains the JSON body plus our appended "HTTP 200" line.
+          # Strip the HTTP status line, then extract the token with jq.
+          TOKEN=$(grep -o '"access_token":"[^"]*"' login.out | head -1 | cut -d'"' -f4)
           if [ -z "$TOKEN" ]; then
             echo "No access_token in login response. Container logs:"
             docker compose logs auth_service --tail=50
