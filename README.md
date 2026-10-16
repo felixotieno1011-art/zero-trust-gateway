@@ -9,6 +9,66 @@
 
 A reverse proxy that secures backend microservices with JWT authentication, a custom Web Application Firewall (WAF), and Redis-backed rate limiting.
 
+## What is this?
+
+A security gateway that sits between the internet and your backend services.
+Every incoming request passes through it before reaching anything internal.
+
+The gateway does four things on every request:
+
+1. **Rate limits** — blocks clients sending too many requests
+2. **Filters malicious payloads** — blocks SQL injection and XSS attacks
+3. **Verifies identity** — checks a JWT token to know who the caller is
+4. **Forwards clean requests** — passes authenticated traffic to backend services
+
+Backends never see the internet directly. They only see requests the gateway
+has already approved, with a verified user identity attached.
+
+---
+
+## What problem does it solve?
+
+Without a gateway, every backend service has to handle its own authentication,
+rate limiting, and input validation. That's a lot of duplicated code, and any
+service that forgets one of those gets compromised.
+
+With a gateway:
+
+| Client sends... | What happens |
+|---|---|
+| 500 login attempts per minute | Rate limiter returns `429 Too Many Requests` |
+| `' OR '1'='1` in a query string | WAF returns `403 request blocked by WAF` |
+| No JWT token | Auth middleware returns `401 missing bearer token` |
+| A valid JWT | Gateway verifies it, injects user identity, forwards to backend |
+| A stolen refresh token reused after rotation | `401 refresh token revoked or unknown` |
+
+---
+
+## Quick start
+
+### Prerequisites
+
+- Docker and Docker Compose (v2)
+- Or: Python 3.12+, PostgreSQL, and Redis running locally
+
+### Run the full stack with Docker
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/felixotieno1011-art/zero-trust-gateway.git
+cd zero-trust-gateway
+
+# 2. Create a .env with a JWT secret (must be 32+ chars)
+cat > .env << 'EOF'
+JWT_SECRET=change-me-to-a-random-48-char-string
+POSTGRES_PASSWORD=gateway_dev_password
+EOF
+
+# 3. Start everything
+docker compose up -d
+
+# 4. Wait ~10 seconds, then check
+curl http://localhost:8080/health
 ## Why Starlette instead of FastAPI
 
 Built and tested on Termux (Android, aarch64, Python 3.14). FastAPI's dependency on `pydantic-core` (Rust) cannot be built on this target because `rustup` does not support `aarch64-unknown-linux-android`. Starlette provides the same async framework primitives without Rust dependencies.
