@@ -2,30 +2,27 @@
 import os
 from contextlib import contextmanager
 from typing import Iterator
+from urllib.parse import urlparse
 
 import pg8000.native
 
 
 def _conn_kwargs() -> dict:
-    """Parse DATABASE_URL. Supports postgresql://host/dbname only."""
     url = os.getenv("DATABASE_URL", "postgresql://localhost/gateway_db")
-    if "://" not in url:
-        raise RuntimeError("DATABASE_URL must start with postgresql://")
-    without_scheme = url.split("://", 1)[1]
-    if "/" not in without_scheme:
-        raise RuntimeError("DATABASE_URL must include a database name")
-    host_part, dbname = without_scheme.split("/", 1)
-    host = host_part or "localhost"
+    parsed = urlparse(url)
+    if parsed.scheme not in ("postgresql", "postgres"):
+        raise RuntimeError("DATABASE_URL must use postgresql:// or postgres://")
 
-    # Priority: PGUSER env var → current OS user (whoami) → error
-    user = os.getenv("PGUSER")
-    if not user:
-        user = os.getenv("USER")
-
-    if not user:
-        raise RuntimeError("Cannot determine PostgreSQL user. Set PGUSER in .env")
-
-    return {"user": user, "host": host, "database": dbname}
+    kwargs = {
+        "user": parsed.username or os.getenv("PGUSER") or os.getenv("USER", "postgres"),
+        "host": parsed.hostname or "localhost",
+        "database": (parsed.path or "/gateway_db").lstrip("/"),
+    }
+    if parsed.port:
+        kwargs["port"] = parsed.port
+    if parsed.password:
+        kwargs["password"] = parsed.password
+    return kwargs
 
 
 @contextmanager
@@ -59,7 +56,6 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 
 def init_schema() -> None:
-    """Create tables and indexes if they don't exist."""
     with get_conn() as conn:
         for statement in SCHEMA.split(";"):
             stmt = statement.strip()
@@ -90,7 +86,7 @@ def find_refresh_token(conn, token: str):
 
 
 def revoke_refresh_token(conn, token: str) -> int:
-    """Delete a refresh token. Returns rows affected."""
+    """Delete a refresh token. Returns number of rows affected."""
     rows = conn.run(
         "DELETE FROM refresh_tokens WHERE token = :tok RETURNING id",
         tok=token,
@@ -99,7 +95,7 @@ def revoke_refresh_token(conn, token: str) -> int:
 
 
 def revoke_all_user_tokens(conn, user_id: int) -> int:
-    """Revoke every refresh token for a user (used for 'logout everywhere')."""
+    """Revoke every refresh token for a user."""
     rows = conn.run(
         "DELETE FROM refresh_tokens WHERE user_id = :uid RETURNING id",
         uid=user_id,
