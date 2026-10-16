@@ -66,6 +66,20 @@ jobs:
             sleep 1
           done
 
+      - name: Diagnose Postgres connectivity
+        run: |
+          echo "psql version:"
+          psql --version
+          echo ""
+          echo "Connection test (TCP):"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "SELECT version();" || true
+          echo ""
+          echo "Connection test (socket):"
+          psql -U postgres -d postgres -c "SELECT 1;" || true
+          echo ""
+          echo "Env vars:"
+          env | grep -E "^PG|^DATABASE|^REDIS" || true
+
       - name: Run tests
         run: pytest -v
 
@@ -107,23 +121,30 @@ jobs:
 
       - name: Smoke test — register, login, hit protected backend
         run: |
-          # Register
-          curl -sf -X POST http://localhost:8080/auth/register \
+          set -x
+          echo "=== Register ==="
+          curl -sS -w "\nHTTP %{http_code}\n" -X POST http://localhost:8080/auth/register \
             -H "Content-Type: application/json" \
-            -d '{"email":"ci@example.com","password":"testpassword123"}' > /dev/null
+            -d '{"email":"ci@example.com","password":"testpassword123"}' | tee register.out
 
-          # Login
-          TOKEN=$(curl -sf -X POST http://localhost:8080/auth/login \
+          echo "=== Login ==="
+          curl -sS -w "\nHTTP %{http_code}\n" -X POST http://localhost:8080/auth/login \
             -H "Content-Type: application/json" \
-            -d '{"email":"ci@example.com","password":"testpassword123"}' \
-            | python -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+            -d '{"email":"ci@example.com","password":"testpassword123"}' | tee login.out
 
-          # Hit protected backend
-          curl -sf http://localhost:8080/api/a/hello \
-            -H "Authorization: Bearer $TOKEN" | tee /tmp/response.json
+          TOKEN=$(python -c "import json; print(json.load(open('login.out'))['access_token'])" 2>/dev/null || true)
+          if [ -z "$TOKEN" ]; then
+            echo "No access_token in login response. Container logs:"
+            docker compose logs auth_service --tail=50
+            exit 1
+          fi
 
-          # Verify identity injection worked
-          grep -q "ci@example.com" /tmp/response.json
+          echo "=== Protected backend ==="
+          curl -sS -w "\nHTTP %{http_code}\n" http://localhost:8080/api/a/hello \
+            -H "Authorization: Bearer $TOKEN" | tee response.json
+
+          echo "=== Verify identity injection ==="
+          grep -q "ci@example.com" response.json
 
       - name: Smoke test — WAF blocks SQLi
         run: |
