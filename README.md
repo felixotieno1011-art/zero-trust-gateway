@@ -1,3 +1,10 @@
+
+[![CI](https://github.com/felixotieno1011-art/zero-trust-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/felixotieno1011-art/zero-trust-gateway/actions/workflows/ci.yml)
+[![Security Scan](https://github.com/felixotieno1011-art/zero-trust-gateway/actions/workflows/security.yml/badge.svg)](https://github.com/felixotieno1011-art/zero-trust-gateway/actions/workflows/security.yml)
+![Tests](https://img.shields.io/badge/tests-69%20passing-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-blue)
+
+
 # Zero-Trust Identity & API Security Gateway
 
 A reverse proxy that secures backend microservices with JWT authentication, a custom Web Application Firewall (WAF), and Redis-backed rate limiting.
@@ -22,10 +29,10 @@ Built and tested on Termux (Android, aarch64, Python 3.14). FastAPI's dependency
 - [x] Auth service (register, login, JWT, /me)
 - [x] Gateway reverse proxy
 - [x] WAF module (SQLi/XSS detection)
-- [ ] Redis rate limiting
-- [ ] Docker Compose stack
-- [ ] GitHub Actions CI
-- [x] Tests (58 passing)
+- [x] Redis rate limiting
+- [x] Docker Compose stack
+- [x] GitHub Actions CI
+- [x] Tests (69 passing)
 - [ ] Deployment
 
 ## Local Development
@@ -110,3 +117,10 @@ uvicorn auth_service.main:app --host 127.0.0.1 --port 8001 --reload
 - [x] bandit: Python static analysis (medium+ severity)
 - [x] Weekly scheduled run to catch newly-disclosed CVEs
 - [x] All 5 CI jobs green (test, docker, pip-audit, gitleaks, bandit)
+
+
+## Documentation
+
+- [SECURITY.md](SECURITY.md) — threat model, attack scenarios, mitigations
+- [docs/architecture.md](docs/architecture.md) — system diagrams, design decisions
+- [docs/api.md](docs/api.md) — full endpoint reference
