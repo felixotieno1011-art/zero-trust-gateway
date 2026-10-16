@@ -93,3 +93,13 @@ uvicorn auth_service.main:app --host 127.0.0.1 --port 8001 --reload
 - [x] 429 responses include Retry-After
 - [x] Fails open on Redis errors
 - [x] 11 new tests, 69 total passing
+
+### Day 6 — Docker Compose + Network Isolation + CI ✅
+- [x] Multi-container stack via docker-compose.yml
+- [x] Network isolation: edge-net (public), app-net + data-net (internal)
+- [x] Non-root user in containers, health checks on every service
+- [x] Databases never exposed to host
+- [x] GitHub Actions CI: test job (69 tests) + docker job (end-to-end smoke test)
+- [x] Fixed cross-environment issues: psql over TCP, DATABASE_URL urlparse,
+      bcrypt in requirements.txt, python3 in docker job
+- [x] Both CI jobs green
