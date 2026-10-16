@@ -103,3 +103,10 @@ uvicorn auth_service.main:app --host 127.0.0.1 --port 8001 --reload
 - [x] Fixed cross-environment issues: psql over TCP, DATABASE_URL urlparse,
       bcrypt in requirements.txt, python3 in docker job
 - [x] Both CI jobs green
+
+### Day 7 — Security Scans in CI ✅
+- [x] pip-audit: dependency CVE scanning
+- [x] gitleaks: secret scanning across full git history
+- [x] bandit: Python static analysis (medium+ severity)
+- [x] Weekly scheduled run to catch newly-disclosed CVEs
+- [x] All 5 CI jobs green (test, docker, pip-audit, gitleaks, bandit)
