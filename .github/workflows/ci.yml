@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test suite (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gateway_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Set up test environment
+        run: |
+          echo "JWT_SECRET=$(python -c 'import secrets; print(secrets.token_urlsafe(48))')" >> $GITHUB_ENV
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/gateway_test_db" >> $GITHUB_ENV
+          echo "REDIS_URL=redis://localhost:6379/0" >> $GITHUB_ENV
+          echo "PGUSER=postgres" >> $GITHUB_ENV
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do
+            pg_isready -h localhost -U postgres && break
+            sleep 1
+          done
+
+      - name: Run tests
+        run: pytest -v
+
+  docker:
+    name: Build and smoke-test Docker Compose stack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml
+        run: docker compose config > /dev/null
+
+      - name: Build images
+        run: docker compose build
+
+      - name: Set test secrets
+        run: |
+          cat > .env << EOF
+          JWT_SECRET=$(python -c 'import secrets; print(secrets.token_urlsafe(48))')
+          POSTGRES_PASSWORD=test_password
+          EOF
+
+      - name: Start stack
+        run: docker compose up -d
+
+      - name: Wait for gateway to be healthy
+        run: |
+          for i in {1..30}; do
+            if curl -sf http://localhost:8080/health; then
+              echo ""
+              echo "Gateway is healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Gateway did not become healthy"
+          docker compose logs gateway
+          exit 1
+
+      - name: Smoke test — register, login, hit protected backend
+        run: |
+          # Register
+          curl -sf -X POST http://localhost:8080/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"email":"ci@example.com","password":"testpassword123"}' > /dev/null
+
+          # Login
+          TOKEN=$(curl -sf -X POST http://localhost:8080/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"ci@example.com","password":"testpassword123"}' \
+            | python -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+          # Hit protected backend
+          curl -sf http://localhost:8080/api/a/hello \
+            -H "Authorization: Bearer $TOKEN" | tee /tmp/response.json
+
+          # Verify identity injection worked
+          grep -q "ci@example.com" /tmp/response.json
+
+      - name: Smoke test — WAF blocks SQLi
+        run: |
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "http://localhost:8080/api/a/echo?id=1'%20OR%20'1'='1" \
+            -H "Authorization: Bearer invalid")
+          [ "$CODE" = "403" ] || (echo "Expected 403, got $CODE"; exit 1)
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

@@ -1,0 +1,128 @@
+# Zero-Trust Gateway — full stack with network isolation.
+#
+# Networks:
+#   edge-net  — public (gateway only)
+#   app-net   — internal (gateway + backends)
+#   data-net  — internal (auth + databases)
+#
+# Only the gateway exposes a port to the host.
+
+services:
+  # ─── Data layer (data-net only) ───────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gateway
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gateway_dev_password}
+      POSTGRES_DB: gateway_db
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - data-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gateway -d gateway_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # No ports: section — deliberately not exposed to the host
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - data-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # No ports: section
+
+  # ─── Application layer (app-net + data-net) ───────────────────────────
+  auth_service:
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+    command:
+      - python
+      - -m
+      - uvicorn
+      - auth_service.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8001"
+    environment:
+      DATABASE_URL: postgresql://gateway:${POSTGRES_PASSWORD:-gateway_dev_password}@postgres:5432/gateway_db
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET}
+      PGUSER: gateway
+      ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      BCRYPT_ROUNDS: "12"
+    networks:
+      - app-net
+      - data-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mock_service_a:
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+    command: ["python", "-m", "uvicorn", "mock_service_a.main:app", "--host", "0.0.0.0", "--port", "9001"]
+    networks:
+      - app-net
+    restart: unless-stopped
+
+  mock_service_b:
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+    command: ["python", "-m", "uvicorn", "mock_service_b.main:app", "--host", "0.0.0.0", "--port", "9002"]
+    networks:
+      - app-net
+    restart: unless-stopped
+
+  # ─── Gateway (edge-net + app-net) ─────────────────────────────────────
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+    command: ["python", "-m", "uvicorn", "gateway.main:app", "--host", "0.0.0.0", "--port", "8080"]
+    environment:
+      AUTH_SERVICE_URL: http://auth_service:8001
+      MOCK_A_URL: http://mock_service_a:9001
+      MOCK_B_URL: http://mock_service_b:9002
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8080:8080"   # ← only service exposed to the host
+    networks:
+      - edge-net
+      - app-net
+    depends_on:
+      - auth_service
+      - mock_service_a
+      - mock_service_b
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  redis_data:
+
+networks:
+  edge-net:
+    driver: bridge
+  app-net:
+    driver: bridge
+    internal: true    # ← no external routing
+  data-net:
+    driver: bridge
+    internal: true    # ← no external routing
